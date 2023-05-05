@@ -94,7 +94,21 @@ static void frustum(GLfloat* m, float left, float right, float bottom, float top
 static void perspective(GLfloat* m, float fovy, float aspect, float zNear, float zFar)
 {
   // 【宿題】ここを解答してください（loadIdentity() を置き換えてください）
-  loadIdentity(m);
+  // loadIdentity(m);
+
+  const GLfloat dz(zFar - zNear);
+
+  if (dz != 0.0f)
+  {
+    m[ 5] = 1.0f / tan(fovy * 0.5f);
+    m[ 0] = m[5] / aspect;
+    m[10] = -(zFar + zNear) / dz;
+    m[11] = -1.0f;
+    m[14] = -2.0f * zFar * zNear / dz;
+    m[ 1] = m[ 2] = m[ 3] = m[ 4] =
+    m[ 6] = m[ 7] = m[ 8] = m[ 9] =
+    m[12] = m[13] = m[15] = 0.0f;
+  }
 }
 
 //
@@ -108,7 +122,63 @@ static void perspective(GLfloat* m, float fovy, float aspect, float zNear, float
 static void lookat(GLfloat* m, float ex, float ey, float ez, float tx, float ty, float tz, float ux, float uy, float uz)
 {
   // 【宿題】ここを解答してください（loadIdentity() を置き換えてください）
-  loadIdentity(m);
+  // loadIdentity(m);
+
+  // 平行移動の変換行列(逆行列)
+  GLfloat tv[16];
+  tv[12] = -ex;
+  tv[13] = -ey;
+  tv[14] = -ez;
+  tv[1] = tv[2] = tv[3] =
+  tv[4] = tv[6] = tv[7] =
+  tv[8] = tv[9] = tv[11] = 0.0f;
+  tv[0] = tv[5] = tv[10] = tv[15] = 1.0f;
+
+  // p軸 = e - t
+  const GLfloat px(ex - tx);
+  const GLfloat py(ey - ty);
+  const GLfloat pz(ez - tz);
+
+  // q軸 = u x p軸 外積
+  const GLfloat qx(uy * pz - uz * py);
+  const GLfloat qy(uz * px - ux * pz);
+  const GLfloat qz(ux * py - uy * px);
+
+  // r軸 = p軸 x q軸
+  const GLfloat rx(py * qz - pz * qy);
+  const GLfloat ry(pz * qx - px * qz);
+  const GLfloat rz(px * qy - py * qx);
+
+  // r軸の長さ
+  const GLfloat r2(rx * rx + ry * ry + rz * rz);
+
+  // 回転の変換行列
+  GLfloat rv[16];
+
+  // q軸を正規化して配列変数に格納
+  const GLfloat q(sqrt(qx * qx + qy * qy + qz * qz));
+  rv[0] = qx / q;
+  rv[4] = qy / q;
+  rv[8] = qz / q;
+
+  // r軸を正規化して配列変数に格納
+  const GLfloat r(sqrt(r2));
+  rv[1] = rx / r;
+  rv[5] = ry / r;
+  rv[9] = rz / r;
+
+  // p軸を正規化して配列変数に格納
+  const GLfloat p(sqrt(px * px + py * py + pz * pz));
+  rv[2] = px / p;
+  rv[6] = py / p;
+  rv[10] = pz / p;
+
+  // 残りの成分
+  rv[3] = rv[7] = rv[11] = rv[12] = rv[13] = rv[14] = 0.0f;
+  rv[15] = 1.0f;
+
+  // 支店の平行移動の変換行列に視線の回転の変換行列を乗じる
+  multiply(m, rv, tv);
 }
 
 //
@@ -190,6 +260,7 @@ int GgApp::main(int argc, const char* const* argv)
 
     // uniform 変数 mc に変換行列 mc を設定する
     // 【宿題】ここを解答してください（uniform 変数 mc のインデックスは変数 mcLoc に入っています）
+    glUniformMatrix4fv(mcLoc, 1, GL_FALSE, mc);
 
     // 描画に使う頂点配列オブジェクトの指定
     glBindVertexArray(vao);
